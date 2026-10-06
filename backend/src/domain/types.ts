@@ -32,6 +32,6 @@ export interface CreateBookingDTO {
 export interface DomainError {
     status: number;
     message: string;
-    code: number;
+    code: string | number;
     details?: Record<string, unknown>;
 }

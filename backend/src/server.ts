@@ -1,6 +1,6 @@
 import path from "path";
 import {createApp} from "./app";
-import {createDatabase} from "./database";
+import {createDatabase} from "./db/database";
 
 const PORT = process.env.PORT || 4000;
 const DB_FILE = path.join(__dirname, '../../booking.db');

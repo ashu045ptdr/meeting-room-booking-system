@@ -1,9 +1,14 @@
-import ( Room, Booking, ApiErrorResponse ) from './types';
+import { Room, Booking, ApiErrorResponse } from './types';
 
-async function handleApiResponse(response: Response): Promise<any> {
+async function handleApiResponse<T>(response: Response): Promise<T> {
     if (!response.ok) {
-        const errorData: ApiErrorResponse = await response.json();
-        throw new Error(errorData.error.message);
+        let errorData;
+        try {
+            errorData = await response.json();
+        } catch {
+            throw new Error('Unknown error');
+        }
+        throw new Error(errorData?.error?.message || 'Unknown error');
     }
     return response.json();
 }
@@ -13,7 +18,7 @@ export async function fetchRooms(): Promise<Room[]> {
     return handleApiResponse<Room[]>(response);
 }
 
-export async function fetchBookings(date: string, roomId: number): Promise<Booking[]> {
+export async function fetchBookings(date: string, roomId?: number): Promise<Booking[]> {
     const url = roomId ? `/api/bookings?date=${date}&roomId=${roomId}` : `/api/bookings?date=${date}`;
     const response = await fetch(url);
     return handleApiResponse<Booking[]>(response);
@@ -27,17 +32,17 @@ export async function createBooking(data: {
     start: string;
     end: string;
 }): Promise<Booking> {
-    const res = await fetch('api/bookings', {
+    const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json'},
         body: JSON.stringify(data)
     });
-    return handleResponse<Booking>(res);
+    return handleApiResponse<Booking>(res);
 }
 
 export async function cancelBooking(id: number): Promise<void> {
     const res = await fetch(`/api/bookings/${id}`, {method: 'DELETE'});
-    await handleResponse<{success: boolean } >(res);
+    await handleApiResponse<{message: string}>(res);
 }
 
 export async function searchAvailability(params: {
@@ -54,5 +59,5 @@ export async function searchAvailability(params: {
     });
 
     const res = await fetch(`/api/availability?${query.toString()}`);
-    return handleResponse<Room[]>(res);
+    return handleApiResponse<Room[]>(res);
 }

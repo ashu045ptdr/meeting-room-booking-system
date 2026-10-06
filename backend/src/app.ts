@@ -1,8 +1,8 @@
 import express from 'express';
 import cors from 'cors';
-import {Database} from './database';
+import {Database} from 'better-sqlite3';
 import {ApiController, errorHandler} from './controller/apiController';
-import {BookingService} from './services/bookingService';
+import {BookingService} from './service/bookingService';
 import {BookingRepository} from './repository/bookingRepository';
 
 export function createApp(db: Database): express.Application {
@@ -19,3 +19,8 @@ export function createApp(db: Database): express.Application {
     app.post('/api/bookings', (req, res, next) => controller.createBooking(req, res, next));
     app.delete('/api/bookings/:id', (req, res, next) => controller.cancelBooking(req, res, next));
     app.get('/api/availability', (req, res, next) => controller.getAvailability(req, res, next));
+
+    app.use(errorHandler);
+
+    return app;
+}

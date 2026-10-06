@@ -1,47 +1,50 @@
-import { Request, Response, NextFunction } from 'express';
-import { BookingService } from '../service/bookingService';
-import { BookingRuleViolation } from '../domain/rules';
-
-export class ApiController {
-    constructor(private bookingService: BookingService) {}
-
-    getAllRooms(req: Request, res: Response, next: NextFunction): void {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.ApiController = void 0;
+exports.errorHandler = errorHandler;
+const rules_1 = require("../domain/rules");
+class ApiController {
+    bookingService;
+    constructor(bookingService) {
+        this.bookingService = bookingService;
+    }
+    getAllRooms(req, res, next) {
         try {
             const rooms = this.bookingService.getAllRooms();
             res.status(200).json(rooms);
-        } catch (error) {
+        }
+        catch (error) {
             next(error);
         }
     }
-
-    getBookings(req: Request, res: Response, next: NextFunction): void {
-        try{
-            const date = req.query.date as string;
-            const roomIdStr = req.query.roomId as string | undefined;
-
-            if(!date) {
+    getBookings(req, res, next) {
+        try {
+            const date = req.query.date;
+            const roomIdStr = req.query.roomId;
+            if (!date) {
                 res.status(400).json({ error: { message: 'Missing required query parameter: date' } });
                 return;
             }
-
             const roomId = roomIdStr ? parseInt(roomIdStr, 10) : undefined;
             const bookings = this.bookingService.getBookings(date, roomId);
             res.status(200).json(bookings);
-        } catch (error) {
+        }
+        catch (error) {
             next(error);
         }
-    };
-
-    createBooking(req: Request, res: Response, next: NextFunction): void {
+    }
+    ;
+    createBooking(req, res, next) {
         try {
             const booking = this.bookingService.createBooking(req.body);
             res.status(201).json(booking);
-        } catch (error) {
+        }
+        catch (error) {
             next(error);
         }
-    };
-
-    cancelBooking(req: Request, res: Response, next: NextFunction): void {
+    }
+    ;
+    cancelBooking(req, res, next) {
         try {
             const id = parseInt(req.params.id, 10);
             if (isNaN(id)) {
@@ -50,36 +53,37 @@ export class ApiController {
             }
             this.bookingService.cancelBooking(id);
             res.status(200).json({ message: 'Booking cancelled successfully' });
-        } catch (error) {
+        }
+        catch (error) {
             next(error);
         }
-    };
-
-    getAvailability(req: Request, res: Response, next: NextFunction): void {
+    }
+    ;
+    getAvailability(req, res, next) {
         try {
-            const date = req.query.date as string;
-            const start = req.query.start as string;
-            const end = req.query.end as string;
-            const minCapacityStr = req.query.minCapacity as string | undefined;
-
+            const date = req.query.date;
+            const start = req.query.start;
+            const end = req.query.end;
+            const minCapacityStr = req.query.minCapacity;
             if (!date || !start || !end || !minCapacityStr) {
                 res.status(400).json({
                     error: { message: 'Missing required query parameters: date, start, end, or minCapacity' }
                 });
                 return;
             }
-
             const minCapacity = parseInt(minCapacityStr, 10);
             const rooms = this.bookingService.findAvailableRooms(date, start, end, minCapacity);
             res.status(200).json(rooms);
-        } catch (error) {
+        }
+        catch (error) {
             next(error);
         }
-    };
+    }
+    ;
 }
-
-export function errorHandler(err: unknown, req: Request, res: Response, next: NextFunction): void {
-    if (err instanceof BookingRuleViolation) {
+exports.ApiController = ApiController;
+function errorHandler(err, req, res, next) {
+    if (err instanceof rules_1.BookingRuleViolation) {
         res.status(err.status).json({
             error: {
                 code: err.code,
@@ -89,7 +93,6 @@ export function errorHandler(err: unknown, req: Request, res: Response, next: Ne
         });
         return;
     }
-
     console.error('Unexpected error:', err);
     res.status(500).json({
         error: {

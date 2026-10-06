@@ -1,6 +1,6 @@
 import { BookingRepository } from '../repository/bookingRepository';
 import { CreateBookingDTO, Booking, Room, BookingStatus } from '../domain/types';
-import { validateInputTypes, validateBookingRules, BookingRuleViolation } from '../domain/rules';
+import { validateInputTypes, validateBookingRules, BookingRuleViolation, checkOrganizerDailyLimit, checkOverlapConflict, intervalsOverlap } from '../domain/rules';
 
 export class BookingService {
     constructor(private bookingRepository: BookingRepository) {}
@@ -24,10 +24,13 @@ export class BookingService {
             throw new BookingRuleViolation(404, 'Room not found', 404);
         }
 
+        const now = new Date();
         const { startDate, endDate } = validateBookingRules(dto, room, now);
+        
         const dayPrefix = startDate.toISOString().split('T')[0];
         const organizerDayBookings = this.bookingRepository.getOrganizerBookingsByDay(dayPrefix, dto.organizerEmail);
-        checkOrganizerDayLimit(organizerDayBookings, startDate, endDate);
+        
+        checkOrganizerDailyLimit(organizerDayBookings);
 
         const recordToInsert = {
             roomId: dto.roomId,
@@ -36,16 +39,16 @@ export class BookingService {
             attendees: dto.attendees,
             start: startDate.toISOString(),
             end: endDate.toISOString(),
-            status: 'confirmed' as BookingStatus,
-            createdAt: new Date().toISOString()
+            status: 'confirmed' as const,
+            createdAt: now.toISOString()
         };
 
         return this.bookingRepository.atomicCreateBooking(recordToInsert, (activeBookings) => {
-            checkOverLappConflict(startDate, endDate, activeBookings);
+            checkOverlapConflict(startDate, endDate, activeBookings);
         });
     }
 
-    cancelBookings(id: number, now: Date = new Date()): void {
+    cancelBooking(id: number, now: Date = new Date()): void {
         const booking = this.bookingRepository.getBookingById(id);
         if(!booking) {
             throw new BookingRuleViolation(404, 'Booking not found', 404);
@@ -56,13 +59,13 @@ export class BookingService {
         }
 
         const startTime = new Date(booking.start);
-        if(startTime <= now) {
-            throw new BookingRuleViolation(400, 'Cannot cancel a booking that has already started or passed', 400);
+        if(startTime.getTime() <= now.getTime()) {
+            throw new BookingRuleViolation(409, 'Cannot cancel a booking that has already started or passed', 409);
         }
         this.bookingRepository.cancelBooking(id);
     }
 
-    findAvailableRooms(date: string, startTime: string, endTime: string): Room[] {
+    findAvailableRooms(date: string, startTime: string, endTime: string, minCapacity: number): Room[] {
         if(!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
             throw new BookingRuleViolation(400, 'Invalid date format. Expected YYYY-MM-DD', 400);
         }
@@ -76,7 +79,7 @@ export class BookingService {
         const startISO = `${date}T${startTime}:00Z`;
         const endISO = `${date}T${endTime}:00Z`;
 
-        const dumyRoom: Room = {
+        const dummyRoom: Room = {
             id: -1,
             name: 'Dummy Room',
             capacity: minCapacity,
@@ -84,13 +87,13 @@ export class BookingService {
             amenities: []
         };
         const { startDate, endDate } = validateBookingRules({
-            roomId: dumyRoom.id,
+            roomId: dummyRoom.id,
             title: 'Dummy',
             organizerEmail: 'check@test.com',
             attendees: minCapacity,
             start: startISO,
             end: endISO
-        }, dumyRoom, new Date());
+        }, dummyRoom, new Date());
 
         const allRooms = this.bookingRepository.getAllRooms();
         const candidateRooms = allRooms.filter(room => room.capacity >= minCapacity);

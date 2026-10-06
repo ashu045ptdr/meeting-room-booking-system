@@ -1,11 +1,13 @@
-import Database from 'better-sqlite3';
-import { Booking, Room } from '../domain/types';
-
-export class BookingRepository {
-    constructor(private db: Database.Database) {}
-
-    getAllRooms(): Room[] {
-        const rows = this.db.prepare('SELECT * FROM rooms').all() as any[];
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.BookingRepository = void 0;
+class BookingRepository {
+    db;
+    constructor(db) {
+        this.db = db;
+    }
+    getAllRooms() {
+        const rows = this.db.prepare('SELECT * FROM rooms').all();
         return rows.map(row => ({
             id: row.id,
             name: row.name,
@@ -14,10 +16,10 @@ export class BookingRepository {
             amenities: JSON.parse(row.amenities)
         }));
     }
-
-    getRoomById(roomId: number): Room | null {
-        const row = this.db.prepare('SELECT * FROM rooms WHERE id = ?').get(roomId) as any;
-        if (!row) return null;
+    getRoomById(roomId) {
+        const row = this.db.prepare('SELECT * FROM rooms WHERE id = ?').get(roomId);
+        if (!row)
+            return null;
         return {
             id: row.id,
             name: row.name,
@@ -26,95 +28,61 @@ export class BookingRepository {
             amenities: JSON.parse(row.amenities)
         };
     }
-
-    getConfirmedBookingsForRoom(roomId: number): Booking[] {
+    getConfirmedBookingsForRoom(roomId) {
         return this.db.prepare(`
             SELECT * FROM bookings 
             WHERE roomId = ? AND status = 'confirmed'
-        `).all(roomId) as Booking[];
+        `).all(roomId);
     }
-
-    getBookingsByDay(utcDayString: string, roomId?: number): Booking[] {
+    getBookingsByDay(utcDayString, roomId) {
         // e.g. utcDayString is YYYY-MM-DD
         const startWindow = `${utcDayString}T00:00:00.000Z`;
         const endWindow = `${utcDayString}T23:59:59.999Z`;
-
         if (roomId) {
             return this.db.prepare(`
                 SELECT * FROM bookings 
                 WHERE roomId = ? AND status = 'confirmed' 
                 AND start >= ? AND start <= ?
-            `).all(roomId, startWindow, endWindow) as Booking[];
+            `).all(roomId, startWindow, endWindow);
         }
-
         return this.db.prepare(`
             SELECT * FROM bookings 
             WHERE status = 'confirmed' 
             AND start >= ? AND start <= ?
-        `).all(startWindow, endWindow) as Booking[];
+        `).all(startWindow, endWindow);
     }
-
-    getOrganizerBookingsByDay(utcDayString: string, organizerEmail: string): Booking[] {
+    getOrganizerBookingsByDay(utcDayString, organizerEmail) {
         const datStart = `${utcDayString}T00:00:00.000Z`;
         const datEnd = `${utcDayString}T23:59:59.999Z`;
-
         return this.db.prepare(`
             SELECT * FROM bookings 
             WHERE organizerEmail = ? AND status = 'confirmed' 
             AND start >= ? AND start <= ?
-        `).all(organizerEmail, datStart, datEnd) as Booking[];
+        `).all(organizerEmail, datStart, datEnd);
     }
-
-    getBookingById(bookingId: number): Booking | null {
-        const row = this.db.prepare('SELECT * FROM bookings WHERE id = ?').get(bookingId) as Booking | undefined;
+    getBookingById(bookingId) {
+        const row = this.db.prepare('SELECT * FROM bookings WHERE id = ?').get(bookingId);
         return row ?? null;
     }
-
-    atomicCreateBooking(
-        bookingData: {
-            roomId: number;
-            title: string;
-            organizerEmail: string;
-            attendees: number;
-            start: string;
-            end: string;
-            status: 'confirmed';
-            createdAt: string;
-        },
-        validateConflictFn: (existingConfirmed: Booking[]) => void
-    ): Booking {
+    atomicCreateBooking(bookingData, validateConflictFn) {
         const runTransaction = this.db.transaction(() => {
             const activeBookings = this.db.prepare(`
                 SELECT * FROM bookings 
                 WHERE roomId = ? AND status = 'confirmed'
-            `).all(bookingData.roomId) as Booking[];
-
+            `).all(bookingData.roomId);
             validateConflictFn(activeBookings);
-
             const info = this.db.prepare(`
                 INSERT INTO bookings (roomId, title, organizerEmail, attendees, start, end, status, createdAt)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `).run(
-                bookingData.roomId,
-                bookingData.title,
-                bookingData.organizerEmail,
-                bookingData.attendees,
-                bookingData.start,
-                bookingData.end,
-                bookingData.status,
-                bookingData.createdAt
-            );
-
+            `).run(bookingData.roomId, bookingData.title, bookingData.organizerEmail, bookingData.attendees, bookingData.start, bookingData.end, bookingData.status, bookingData.createdAt);
             return {
                 id: Number(info.lastInsertRowid),
                 ...bookingData
             };
         });
-
         return runTransaction.immediate();
     }
-
-    cancelBooking(id: number): void {
+    cancelBooking(id) {
         this.db.prepare(`
             UPDATE bookings
             SET status = 'cancelled'
@@ -122,3 +90,4 @@ export class BookingRepository {
         `).run(id);
     }
 }
+exports.BookingRepository = BookingRepository;
